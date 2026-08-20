@@ -1,0 +1,50 @@
+# Project-local command policy. Loaded only when this project's .codex layer is trusted.
+
+prefix_rule(
+    pattern = ["git", "reset", "--hard"],
+    decision = "forbidden",
+    justification = "Do not destroy local work. Inspect status/diff and use a targeted non-destructive operation instead.",
+    match = ["git reset --hard", "git reset --hard HEAD"],
+)
+
+prefix_rule(
+    pattern = ["git", "clean", ["-fd", "-fdx", "-df", "-xdf"]],
+    decision = "forbidden",
+    justification = "Do not delete untracked files automatically. Inspect them and remove only explicitly confirmed paths.",
+    match = ["git clean -fd", "git clean -fdx"],
+)
+
+prefix_rule(
+    pattern = ["git", "push", ["--force", "-f", "--force-with-lease"]],
+    decision = "forbidden",
+    justification = "Do not rewrite remote history automatically. Use a normal push or request explicit human intervention.",
+    match = ["git push --force", "git push -f", "git push --force-with-lease"],
+)
+
+prefix_rule(
+    pattern = ["git", "add", [".", "-A", "--all"]],
+    decision = "forbidden",
+    justification = "Review status/diff and stage explicit paths only.",
+    match = ["git add .", "git add -A", "git add --all"],
+)
+
+prefix_rule(
+    pattern = ["git", "push"],
+    decision = "prompt",
+    justification = "Remote writes must be intentional and target the expected repository and branch.",
+    match = ["git push", "git push origin feature/example"],
+)
+
+prefix_rule(
+    pattern = ["gh", ["pr", "issue", "release", "repo"]],
+    decision = "prompt",
+    justification = "GitHub CLI operations may mutate remote state; review the exact command before allowing it outside the sandbox.",
+    match = ["gh pr create", "gh issue close 42", "gh release create v1.0.0", "gh repo edit"],
+)
+
+prefix_rule(
+    pattern = ["gh", "repo", "delete"],
+    decision = "forbidden",
+    justification = "Repository deletion must be performed manually after explicit human verification.",
+    match = ["gh repo delete owner/repo"],
+)
