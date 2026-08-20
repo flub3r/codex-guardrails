@@ -15,5 +15,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Validate structure and TOML
+      - name: Validate structure, TOML, role policy, and prompt budgets
         run: python scripts/verify.py

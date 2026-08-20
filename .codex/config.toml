@@ -3,6 +3,8 @@ multi_agent = true
 
 [agents]
 enabled = true
-max_concurrent_threads_per_session = 6
-# Deliberately do not pin the primary model here.
-# Users choose the main Codex model; specialized workers below optimize context and cost.
+max_concurrent_threads_per_session = 4
+default_subagent_model = "gpt-5.6-terra"
+default_subagent_reasoning_effort = "low"
+# Keep the primary model user-selected. Generic workers start efficient;
+# named agents below escalate only for a specific role.

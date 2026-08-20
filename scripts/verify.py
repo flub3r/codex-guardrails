@@ -3,35 +3,141 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 import tomllib
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+AGENTS_PATH = ROOT / "AGENTS.md"
+CONFIG_PATH = ROOT / ".codex" / "config.toml"
+AGENT_DIR = ROOT / ".codex" / "agents"
+AGENT_FILES = {
+    "explorer": AGENT_DIR / "explorer.toml",
+    "reviewer": AGENT_DIR / "reviewer.toml",
+    "verifier": AGENT_DIR / "verifier.toml",
+    "test_runner": AGENT_DIR / "test-runner.toml",
+}
 REQUIRED = [
-    ROOT / "AGENTS.md",
-    ROOT / ".codex" / "config.toml",
+    AGENTS_PATH,
+    CONFIG_PATH,
     ROOT / ".codex" / "rules" / "default.rules",
-    ROOT / ".codex" / "agents" / "explorer.toml",
-    ROOT / ".codex" / "agents" / "reviewer.toml",
-    ROOT / ".codex" / "agents" / "verifier.toml",
-    ROOT / ".codex" / "agents" / "test-runner.toml",
+    *AGENT_FILES.values(),
+    ROOT / "docs" / "REASONING-BUDGET.md",
 ]
 
+ROOT_INSTRUCTION_MAX_BYTES = 3_400
+AGENT_INSTRUCTION_MAX_BYTES = 700
+TOTAL_AGENT_INSTRUCTION_MAX_BYTES = 2_400
+MAX_SUBAGENT_THREADS = 4
+
 errors: list[str] = []
+parsed_toml: dict[Path, dict[str, Any]] = {}
+
+
+def load_toml(path: Path) -> dict[str, Any] | None:
+    try:
+        with path.open("rb") as fh:
+            data = tomllib.load(fh)
+    except Exception as exc:
+        errors.append(f"invalid TOML {path.relative_to(ROOT)}: {exc}")
+        return None
+    parsed_toml[path] = data
+    return data
+
+
 for path in REQUIRED:
     if not path.is_file():
         errors.append(f"missing required file: {path.relative_to(ROOT)}")
 
-for path in (ROOT / ".codex").rglob("*.toml"):
-    try:
-        with path.open("rb") as fh:
-            tomllib.load(fh)
-    except Exception as exc:
-        errors.append(f"invalid TOML {path.relative_to(ROOT)}: {exc}")
+if (ROOT / ".codex").is_dir():
+    for path in (ROOT / ".codex").rglob("*.toml"):
+        load_toml(path)
 
-if (ROOT / "AGENTS.md").is_file():
-    agents_text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    for required_text in ("Subagent policy", "Git safety", "Completion standard"):
+root_instruction_bytes = 0
+if AGENTS_PATH.is_file():
+    agents_text = AGENTS_PATH.read_text(encoding="utf-8")
+    root_instruction_bytes = len(agents_text.encode("utf-8"))
+    for required_text in (
+        "Reasoning budget",
+        "Subagent policy",
+        "Git safety",
+        "Completion standard",
+    ):
         if required_text not in agents_text:
             errors.append(f"AGENTS.md missing section marker: {required_text}")
+    if root_instruction_bytes > ROOT_INSTRUCTION_MAX_BYTES:
+        errors.append(
+            "AGENTS.md exceeds prompt budget: "
+            f"{root_instruction_bytes} > {ROOT_INSTRUCTION_MAX_BYTES} bytes"
+        )
+
+config = parsed_toml.get(CONFIG_PATH)
+if config is not None:
+    features = config.get("features", {})
+    agents = config.get("agents", {})
+    if features.get("multi_agent") is not True:
+        errors.append("config must enable features.multi_agent")
+    if agents.get("enabled") is not True:
+        errors.append("config must enable agents.enabled")
+    if agents.get("default_subagent_model") != "gpt-5.6-terra":
+        errors.append("default subagent model must be gpt-5.6-terra")
+    if agents.get("default_subagent_reasoning_effort") != "low":
+        errors.append("default subagent reasoning effort must be low")
+    max_threads = agents.get("max_concurrent_threads_per_session")
+    if not isinstance(max_threads, int) or isinstance(max_threads, bool):
+        errors.append("max_concurrent_threads_per_session must be an integer")
+    elif not 1 <= max_threads <= MAX_SUBAGENT_THREADS:
+        errors.append(
+            "max_concurrent_threads_per_session must be between 1 and "
+            f"{MAX_SUBAGENT_THREADS}"
+        )
+
+total_agent_instruction_bytes = 0
+for expected_name, path in AGENT_FILES.items():
+    data = parsed_toml.get(path)
+    if data is None:
+        continue
+    if data.get("name") != expected_name:
+        errors.append(
+            f"{path.relative_to(ROOT)} name must be {expected_name!r}"
+        )
+    if not isinstance(data.get("model"), str) or not data["model"].strip():
+        errors.append(f"{path.relative_to(ROOT)} must set model")
+    if not isinstance(data.get("model_reasoning_effort"), str):
+        errors.append(f"{path.relative_to(ROOT)} must set model_reasoning_effort")
+    if data.get("model_reasoning_summary") != "none":
+        errors.append(f"{path.relative_to(ROOT)} must disable reasoning summaries")
+    if data.get("model_verbosity") != "low":
+        errors.append(f"{path.relative_to(ROOT)} must use low model verbosity")
+
+    instructions = data.get("developer_instructions")
+    if not isinstance(instructions, str) or not instructions.strip():
+        errors.append(f"{path.relative_to(ROOT)} has empty developer_instructions")
+        continue
+    instruction_bytes = len(instructions.encode("utf-8"))
+    total_agent_instruction_bytes += instruction_bytes
+    if instruction_bytes > AGENT_INSTRUCTION_MAX_BYTES:
+        errors.append(
+            f"{path.relative_to(ROOT)} instruction budget exceeded: "
+            f"{instruction_bytes} > {AGENT_INSTRUCTION_MAX_BYTES} bytes"
+        )
+
+reviewer = parsed_toml.get(AGENT_FILES["reviewer"])
+if reviewer is not None:
+    if reviewer.get("model") not in {"gpt-5.6", "gpt-5.6-sol"}:
+        errors.append("reviewer must use gpt-5.6 or gpt-5.6-sol")
+    if reviewer.get("model_reasoning_effort") != "high":
+        errors.append("reviewer must use high reasoning effort")
+
+for efficient_name in ("verifier", "test_runner"):
+    data = parsed_toml.get(AGENT_FILES[efficient_name])
+    if data is not None and data.get("model_reasoning_effort") != "low":
+        errors.append(f"{efficient_name} must use low reasoning effort")
+
+if total_agent_instruction_bytes > TOTAL_AGENT_INSTRUCTION_MAX_BYTES:
+    errors.append(
+        "total agent instruction budget exceeded: "
+        f"{total_agent_instruction_bytes} > "
+        f"{TOTAL_AGENT_INSTRUCTION_MAX_BYTES} bytes"
+    )
 
 if errors:
     print("Guardrails validation failed:")
@@ -39,4 +145,12 @@ if errors:
         print(f"- {error}")
     sys.exit(1)
 
-print("Guardrails structure and TOML validation passed.")
+print("Guardrails structure, TOML, role policy, and prompt budgets passed.")
+print(
+    f"Root instructions: {root_instruction_bytes}/"
+    f"{ROOT_INSTRUCTION_MAX_BYTES} bytes"
+)
+print(
+    f"Agent instructions: {total_agent_instruction_bytes}/"
+    f"{TOTAL_AGENT_INSTRUCTION_MAX_BYTES} bytes total"
+)
