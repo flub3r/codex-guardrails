@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 import tomllib
 from typing import Any
@@ -21,6 +25,40 @@ REQUIRED = [
     ROOT / ".codex" / "rules" / "default.rules",
     *AGENT_FILES.values(),
     ROOT / "docs" / "REASONING-BUDGET.md",
+]
+EXPECTED_AGENTS = {
+    "explorer.toml": ("explorer", "read-only"),
+    "reviewer.toml": ("reviewer", "read-only"),
+    "verifier.toml": ("verifier", "read-only"),
+    "test-runner.toml": ("test_runner", "workspace-write"),
+}
+POLICY_CASES = [
+    (("git", "reset", "--hard"), "forbidden"),
+    (("git", "clean", "-fd"), "forbidden"),
+    (("git", "clean", "-dfx"), "forbidden"),
+    (("git", "clean", "-d", "-f"), "forbidden"),
+    (("git", "clean", "--force", "--directories"), "forbidden"),
+    (("git", "push", "--force"), "forbidden"),
+    (("git", "push", "origin", "--force-with-lease"), "forbidden"),
+    (("git", "push", "origin", "main", "--force"), "forbidden"),
+    (("git", "push", "origin", "main", "--force-with-lease"), "forbidden"),
+    (("git", "add", "."), "forbidden"),
+    (("git", "push", "origin", "main"), "prompt"),
+    (("gh", "pr", "create"), "prompt"),
+    (("gh", "pr", "update-branch", "42"), "prompt"),
+    (("gh", "issue", "close", "42"), "prompt"),
+    (("gh", "release", "delete-asset", "v1.0.0", "old.zip"), "prompt"),
+    (("gh", "repo", "deploy-key", "delete", "123"), "prompt"),
+    (("gh", "repo", "delete", "owner/repo"), "forbidden"),
+    (("gh", "workflow", "run", "build.yml"), "prompt"),
+    (("gh", "run", "cancel", "123"), "prompt"),
+    (("gh", "secret", "set", "TOKEN"), "prompt"),
+    (("gh", "variable", "delete", "MODE"), "prompt"),
+    (("gh", "label", "edit", "bug"), "prompt"),
+    (("gh", "pr", "view", "42"), None),
+    (("gh", "issue", "list"), None),
+    (("gh", "release", "download", "v1.0.0"), None),
+    (("gh", "repo", "view", "owner/repo"), None),
 ]
 
 ROOT_INSTRUCTION_MAX_BYTES = 3_400
@@ -58,6 +96,7 @@ if AGENTS_PATH.is_file():
     for required_text in (
         "Reasoning budget",
         "Subagent policy",
+        "Before spawning",
         "Git safety",
         "Completion standard",
     ):
@@ -99,6 +138,11 @@ for expected_name, path in AGENT_FILES.items():
         errors.append(
             f"{path.relative_to(ROOT)} name must be {expected_name!r}"
         )
+    expected_sandbox = EXPECTED_AGENTS[path.name][1]
+    if data.get("sandbox_mode") != expected_sandbox:
+        errors.append(
+            f"{path.relative_to(ROOT)} sandbox_mode must be {expected_sandbox!r}"
+        )
     if not isinstance(data.get("model"), str) or not data["model"].strip():
         errors.append(f"{path.relative_to(ROOT)} must set model")
     if not isinstance(data.get("model_reasoning_effort"), str):
@@ -139,6 +183,34 @@ if total_agent_instruction_bytes > TOTAL_AGENT_INSTRUCTION_MAX_BYTES:
         f"{TOTAL_AGENT_INSTRUCTION_MAX_BYTES} bytes"
     )
 
+codex = shutil.which("codex")
+if codex:
+    rules_path = ROOT / ".codex" / "rules" / "default.rules"
+    for command, expected_decision in POLICY_CASES:
+        result = subprocess.run(
+            [codex, "execpolicy", "check", "--rules", str(rules_path), *command],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        rendered = " ".join(command)
+        if result.returncode != 0:
+            details = result.stderr.strip() or result.stdout.strip() or f"exit {result.returncode}"
+            errors.append(f"execpolicy failed for {rendered!r}: {details}")
+            continue
+        try:
+            decision = json.loads(result.stdout).get("decision")
+        except (json.JSONDecodeError, AttributeError) as exc:
+            errors.append(f"invalid execpolicy output for {rendered!r}: {exc}")
+            continue
+        if decision != expected_decision:
+            errors.append(
+                f"execpolicy decision for {rendered!r} was {decision!r}, expected {expected_decision!r}"
+            )
+elif os.environ.get("CI", "").lower() == "true":
+    errors.append("Codex CLI is required in CI for command-policy validation")
+
 if errors:
     print("Guardrails validation failed:")
     for error in errors:
@@ -154,3 +226,7 @@ print(
     f"Agent instructions: {total_agent_instruction_bytes}/"
     f"{TOTAL_AGENT_INSTRUCTION_MAX_BYTES} bytes total"
 )
+if codex:
+    print("Command-policy validation passed with Codex CLI.")
+else:
+    print("Codex CLI not found; skipped optional command-policy validation.")

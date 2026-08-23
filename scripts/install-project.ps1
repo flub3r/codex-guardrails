@@ -1,23 +1,21 @@
 param(
-    [Parameter(Mandatory=$true)][string]$Target,
-    [switch]$Force
+    [Parameter(Mandatory=$true)][string]$Target
 )
 
 $ErrorActionPreference = 'Stop'
 $SourceRoot = Split-Path -Parent $PSScriptRoot
-$Target = (Resolve-Path $Target).Path
+$Target = (Resolve-Path -LiteralPath $Target).Path
 
 $items = @('AGENTS.md', '.codex')
 foreach ($item in $items) {
     $dest = Join-Path $Target $item
-    if ((Test-Path $dest) -and -not $Force) {
-        throw "$dest already exists. Review/merge it manually or rerun with -Force only if replacement is intentional."
+    if (Test-Path -LiteralPath $dest) {
+        throw "$dest already exists. Nothing was changed; review and merge the existing configuration manually."
     }
 }
 
-Copy-Item (Join-Path $SourceRoot 'AGENTS.md') (Join-Path $Target 'AGENTS.md') -Force
-if (Test-Path (Join-Path $Target '.codex')) { Remove-Item (Join-Path $Target '.codex') -Recurse -Force }
-Copy-Item (Join-Path $SourceRoot '.codex') (Join-Path $Target '.codex') -Recurse -Force
+Copy-Item -LiteralPath (Join-Path $SourceRoot 'AGENTS.md') -Destination (Join-Path $Target 'AGENTS.md')
+Copy-Item -LiteralPath (Join-Path $SourceRoot '.codex') -Destination (Join-Path $Target '.codex') -Recurse
 
 Write-Host "Installed Codex Guardrails into $Target"
 Write-Host "Review AGENTS.md and .codex/config.toml for project-specific adjustments before committing."

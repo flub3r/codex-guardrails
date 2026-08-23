@@ -8,10 +8,24 @@ prefix_rule(
 )
 
 prefix_rule(
-    pattern = ["git", "clean", ["-fd", "-fdx", "-df", "-xdf"]],
+    pattern = ["git", "clean", ["-fd", "-df", "-fdx", "-fxd", "-dfx", "-dxf", "-xfd", "-xdf"]],
     decision = "forbidden",
     justification = "Do not delete untracked files automatically. Inspect them and remove only explicitly confirmed paths.",
-    match = ["git clean -fd", "git clean -fdx"],
+    match = ["git clean -fd", "git clean -dfx", "git clean -xfd"],
+)
+
+prefix_rule(
+    pattern = ["git", "clean", ["-d", "--directories"], ["-f", "--force"]],
+    decision = "forbidden",
+    justification = "Do not delete untracked files automatically. Inspect them and remove only explicitly confirmed paths.",
+    match = ["git clean -d -f", "git clean --directories --force"],
+)
+
+prefix_rule(
+    pattern = ["git", "clean", ["-f", "--force"], ["-d", "--directories"]],
+    decision = "forbidden",
+    justification = "Do not delete untracked files automatically. Inspect them and remove only explicitly confirmed paths.",
+    match = ["git clean -f -d", "git clean --force --directories"],
 )
 
 prefix_rule(
@@ -19,6 +33,21 @@ prefix_rule(
     decision = "forbidden",
     justification = "Do not rewrite remote history automatically. Use a normal push or request explicit human intervention.",
     match = ["git push --force", "git push -f", "git push --force-with-lease"],
+)
+
+# Rules match exact prefixes, so also block the most common remote-first forms.
+prefix_rule(
+    pattern = ["git", "push", ["origin", "upstream"], ["--force", "-f", "--force-with-lease"]],
+    decision = "forbidden",
+    justification = "Do not rewrite remote history automatically. Use a normal push or request explicit human intervention.",
+    match = ["git push origin --force", "git push upstream --force-with-lease"],
+)
+
+prefix_rule(
+    pattern = ["git", "push", ["origin", "upstream"], ["main", "master"], ["--force", "-f", "--force-with-lease"]],
+    decision = "forbidden",
+    justification = "Do not rewrite remote history automatically. Use a normal push or request explicit human intervention.",
+    match = ["git push origin main --force", "git push upstream master --force-with-lease"],
 )
 
 prefix_rule(
@@ -36,10 +65,51 @@ prefix_rule(
 )
 
 prefix_rule(
-    pattern = ["gh", ["pr", "issue", "release", "repo"]],
+    pattern = ["gh", "pr", ["create", "edit", "merge", "close", "reopen", "comment", "review", "ready", "lock", "unlock", "revert", "update-branch"]],
     decision = "prompt",
-    justification = "GitHub CLI operations may mutate remote state; review the exact command before allowing it outside the sandbox.",
-    match = ["gh pr create", "gh issue close 42", "gh release create v1.0.0", "gh repo edit"],
+    justification = "This pull request command mutates remote state. Confirm the repository, branch, and intended change.",
+    match = ["gh pr create", "gh pr merge 42", "gh pr update-branch 42"],
+    not_match = ["gh pr view 42", "gh pr list", "gh pr checks 42"],
+)
+
+prefix_rule(
+    pattern = ["gh", "issue", ["create", "edit", "close", "reopen", "comment", "delete", "transfer", "pin", "unpin", "lock", "unlock", "develop"]],
+    decision = "prompt",
+    justification = "This issue command mutates remote state. Confirm the repository and intended change.",
+    match = ["gh issue create", "gh issue close 42", "gh issue comment 42 --body fixed"],
+    not_match = ["gh issue view 42", "gh issue list", "gh issue status"],
+)
+
+prefix_rule(
+    pattern = ["gh", "release", ["create", "edit", "delete", "delete-asset", "upload"]],
+    decision = "prompt",
+    justification = "This release command mutates remote state. Confirm the repository, tag, and intended assets.",
+    match = ["gh release create v1.0.0", "gh release delete-asset v1.0.0 old.zip", "gh release upload v1.0.0 artifact.zip"],
+    not_match = ["gh release view v1.0.0", "gh release list", "gh release download v1.0.0"],
+)
+
+prefix_rule(
+    pattern = ["gh", "repo", ["create", "edit", "archive", "unarchive", "rename", "fork", "sync"]],
+    decision = "prompt",
+    justification = "This repository command may mutate remote state. Confirm the repository and intended change.",
+    match = ["gh repo edit", "gh repo archive owner/repo", "gh repo fork owner/repo"],
+    not_match = ["gh repo view owner/repo", "gh repo list", "gh repo clone owner/repo"],
+)
+
+prefix_rule(
+    pattern = ["gh", "repo", "autolink", ["create", "delete"]],
+    decision = "prompt",
+    justification = "This command changes repository autolinks. Confirm the repository and intended change.",
+    match = ["gh repo autolink create --key-prefix TICKET- --url-template https://example.test/<num>", "gh repo autolink delete 1"],
+    not_match = ["gh repo autolink get 1", "gh repo autolink list"],
+)
+
+prefix_rule(
+    pattern = ["gh", "repo", "deploy-key", ["add", "delete"]],
+    decision = "prompt",
+    justification = "This command changes repository deploy keys. Confirm the repository and intended key.",
+    match = ["gh repo deploy-key add key.pub", "gh repo deploy-key delete 123"],
+    not_match = ["gh repo deploy-key list"],
 )
 
 prefix_rule(
@@ -47,4 +117,44 @@ prefix_rule(
     decision = "forbidden",
     justification = "Repository deletion must be performed manually after explicit human verification.",
     match = ["gh repo delete owner/repo"],
+)
+
+prefix_rule(
+    pattern = ["gh", "workflow", ["disable", "enable", "run"]],
+    decision = "prompt",
+    justification = "This command changes or starts a GitHub Actions workflow. Confirm the repository and workflow.",
+    match = ["gh workflow disable build.yml", "gh workflow run build.yml"],
+    not_match = ["gh workflow list", "gh workflow view build.yml"],
+)
+
+prefix_rule(
+    pattern = ["gh", "run", ["cancel", "delete", "rerun"]],
+    decision = "prompt",
+    justification = "This command changes a GitHub Actions run. Confirm the repository and run.",
+    match = ["gh run cancel 123", "gh run rerun 123"],
+    not_match = ["gh run list", "gh run view 123"],
+)
+
+prefix_rule(
+    pattern = ["gh", "secret", ["delete", "set"]],
+    decision = "prompt",
+    justification = "This command changes a GitHub secret. Confirm its scope and intended value.",
+    match = ["gh secret set TOKEN", "gh secret delete TOKEN"],
+    not_match = ["gh secret list"],
+)
+
+prefix_rule(
+    pattern = ["gh", "variable", ["delete", "set"]],
+    decision = "prompt",
+    justification = "This command changes a GitHub variable. Confirm its scope and intended value.",
+    match = ["gh variable set MODE", "gh variable delete MODE"],
+    not_match = ["gh variable get MODE", "gh variable list"],
+)
+
+prefix_rule(
+    pattern = ["gh", "label", ["clone", "create", "delete", "edit"]],
+    decision = "prompt",
+    justification = "This command changes repository labels. Confirm the repository and intended change.",
+    match = ["gh label create bug", "gh label delete obsolete"],
+    not_match = ["gh label list"],
 )

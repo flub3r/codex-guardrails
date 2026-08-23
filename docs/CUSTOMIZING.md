@@ -21,10 +21,10 @@ Keep the always-loaded instructions small. Add a root `AGENTS.md` rule only when
 
 ## What not to customize casually
 
-- Do not raise concurrency to create activity. Four is a ceiling, not a target, and the default workflow starts with one worker.
+- Treat concurrency as a runaway-work ceiling, not a target. Let task independence, context savings, duration, and risk determine the useful count.
 - Do not make every subagent writable. Read-heavy agents are easier to coordinate and less likely to conflict.
-- Do not duplicate policy across `AGENTS.md`, agent files, and docs. Put enforceable global behavior in `AGENTS.md`; role-specific behavior in the relevant agent file; explanations here or in the README.
-- Do not pin the main Codex model unless a team deliberately wants that policy. The main model should remain a user or team choice.
+- Do not duplicate policy across `AGENTS.md`, agent files, and docs. Put global behavior in `AGENTS.md`, role behavior in agent files, and explanations here.
+- Do not pin the main model unless a team deliberately wants that policy.
 
 ## Evaluate changes
 
@@ -32,7 +32,7 @@ Use a small set of representative repository tasks. Compare task success, correc
 
 ## Existing projects
 
-The installers refuse to overwrite an existing `AGENTS.md` or `.codex` directory by default. Prefer merging existing instructions manually. Use `-Force` or `--force` only when replacement is intentional and reviewed.
+The installers never overwrite an existing `AGENTS.md` or `.codex` directory. Merge existing instructions manually so project-specific configuration is not lost.
 
 ## Verify
 
@@ -40,4 +40,4 @@ The installers refuse to overwrite an existing `AGENTS.md` or `.codex` directory
 python scripts/verify.py
 ```
 
-For command-rule behavior, use `codex execpolicy check` against `.codex/rules/default.rules` when Codex CLI is installed.
+When Codex CLI is available, the verifier automatically uses `codex execpolicy check` for representative forbidden, prompted, and read-only commands.

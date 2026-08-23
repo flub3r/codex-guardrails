@@ -2,20 +2,23 @@
 
 A lean, opinionated starter configuration for OpenAI Codex. It is for teams that want disciplined engineering behavior, stronger reasoning on consequential decisions, and a small recurring context cost.
 
-The always-loaded surface stays intentionally small: one root `AGENTS.md`, one project `.codex/config.toml`, four focused subagents, and one command-policy file. Longer explanations and tuning guidance stay outside the automatic instruction path.
+The package keeps prompt overhead intentionally small. The root `AGENTS.md` is the main always-loaded instruction file. Configuration and command policies control runtime behavior, while each focused agent file is added only to the spawned agent that uses it. Longer explanations stay in normal documentation.
 
 ## What it enforces
 
 - Inspect the repository before editing and solve the root problem instead of guessing.
 - Start with the cheapest reliable path and escalate reasoning only for a named uncertainty or material risk.
-- Keep straightforward work in the main thread; start with one subagent when delegation is justified.
+- Assess delegation on every non-trivial task and choose roles dynamically from independence, context load, duration, and risk.
 - Use efficient workers for discovery and validation, while reserving a stronger high-effort reviewer for consequential changes.
 - Prefer targeted reads and distilled evidence over broad scans, raw logs, and duplicated work.
 - Keep the main Codex thread responsible for decisions, integration, and edits.
+- Tell the user before subagents spawn and summarize each agent's contribution at completion.
 - Discover real repository test/build commands, review the final diff, and report validation honestly.
 - Preserve unrelated user changes and refuse to call placeholders or skipped validation "done".
-- Block destructive Git recovery commands and blanket staging.
-- Require intentional review of remote Git/GitHub mutations.
+- Block common destructive Git and force-push layouts, forbid blanket staging, and require approval for every push.
+- Prompt for covered core GitHub mutations while keeping read-only inspection frictionless.
+
+Codex command rules match exact argument prefixes. The policy hard-blocks common force-push layouts and prompts on every other push; `AGENTS.md` supplies the position-independent rule that the agent must refuse any force flag.
 
 ## Reasoning allocation
 
@@ -26,7 +29,7 @@ The always-loaded surface stays intentionally small: one root `AGENTS.md`, one p
 | `verifier` | `gpt-5.6-terra` | low | read-only | Find the minimal real validation path and challenge unsupported claims |
 | `test_runner` | `gpt-5.6-luna` | low | workspace-write | Run bounded repository-defined checks without editing source |
 
-Unnamed subagents default to `gpt-5.6-terra` at low effort. The four-thread limit is a safety ceiling, while `AGENTS.md` asks the main agent to start with one worker and use no more than two investigative workers by default. The primary Codex model remains a user or team choice.
+Unnamed subagents default to `gpt-5.6-terra` at low effort. Four threads is a runaway-work ceiling, not a recommended count: `AGENTS.md` chooses roles and count from the task's actual independent work. The primary Codex model remains a user or team choice.
 
 Agent reasoning summaries are disabled and response verbosity is low. Agents still perform their configured reasoning, but return compact findings rather than extra narration that pollutes the parent context.
 
@@ -48,7 +51,7 @@ Clone this repository, then run one of the installers from the clone.
 ./scripts/install-project.sh /path/to/your-project
 ```
 
-The installer stops if the target already contains `AGENTS.md` or `.codex`. Merge existing project instructions manually when possible. `-Force` / `--force` exists only for deliberate replacement.
+The installer stops without changing anything if the target already contains `AGENTS.md` or `.codex`. It never deletes or overwrites existing Codex configuration; merge existing project instructions manually.
 
 After installation, review the copied files before committing them to the target project.
 
@@ -58,9 +61,9 @@ After installation, review the copied files before committing them to the target
 python scripts/verify.py
 ```
 
-CI runs the same dependency-free structure, TOML, role-policy, and prompt-budget checks on pushes and pull requests. The verifier reports byte budgets as a stable proxy for instruction growth; it does not claim exact model token counts.
+CI runs the same structure, TOML, role-policy, prompt-budget, and command-policy checks on pushes and pull requests. The Codex CLI version used for policy validation is pinned in the workflow. The verifier reports byte budgets as a stable proxy for instruction growth; it does not claim exact model token counts.
 
-If Codex CLI is installed, command policies can also be inspected with `codex execpolicy check` against `.codex/rules/default.rules`.
+Locally, command-policy checks run when Codex CLI is installed; CI requires it instead of silently skipping those checks. CI also smoke-tests the non-destructive installers on Windows and Linux.
 
 ## Customize without bloating context
 
@@ -68,7 +71,7 @@ See [`docs/CUSTOMIZING.md`](docs/CUSTOMIZING.md). Put global enforceable behavio
 
 ## Why this structure
 
-Current Codex releases support project configuration in `.codex/config.toml`, custom project agents under `.codex/agents/`, project-local rules under `.codex/rules/`, and delegation requested by applicable `AGENTS.md` instructions. OpenAI documents that subagents consume more tokens than comparable single-agent runs, recommends `gpt-5.6-terra` for efficient read-heavy work and `gpt-5.6-luna` for narrow repeatable work, and recommends higher effort only where it produces a measured quality gain. OpenAI also reports directional quality and cost gains from leaner system prompts; validate those gains on your own workload.
+Current Codex releases support project configuration, custom project agents, project-local rules, and delegation requested by applicable `AGENTS.md` instructions. OpenAI documents that subagents consume more total tokens, but they can isolate noisy work and route narrow tasks to cheaper models. This starter assesses delegation on every meaningful task, chooses workers from the task rather than a fixed recipe, uses `gpt-5.6-terra` for efficient read-heavy work and `gpt-5.6-luna` for narrow repeatable work, and reserves higher effort for measured quality gains.
 
 Official references:
 

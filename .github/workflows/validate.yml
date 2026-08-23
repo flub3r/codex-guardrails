@@ -15,5 +15,52 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Codex CLI for command-policy validation
+        run: npm install --global @openai/codex@0.147.0
       - name: Validate structure, TOML, role policy, and prompt budgets
         run: python scripts/verify.py
+
+  installers:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Smoke test Bash installer
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          target="$(mktemp -d)"
+          ./scripts/install-project.sh "$target"
+          test -f "$target/AGENTS.md"
+          test -f "$target/.codex/config.toml"
+          if ./scripts/install-project.sh "$target"; then
+            echo "Installer unexpectedly overwrote existing configuration" >&2
+            exit 1
+          fi
+      - name: Smoke test PowerShell installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP ('guardrails-target-' + [guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $target | Out-Null
+          & .\scripts\install-project.ps1 -Target $target
+          if (-not (Test-Path -LiteralPath (Join-Path $target 'AGENTS.md') -PathType Leaf)) {
+            throw 'Installer did not copy AGENTS.md'
+          }
+          if (-not (Test-Path -LiteralPath (Join-Path $target '.codex/config.toml') -PathType Leaf)) {
+            throw 'Installer did not copy .codex/config.toml'
+          }
+          $refusedOverwrite = $false
+          try {
+            & .\scripts\install-project.ps1 -Target $target
+          } catch {
+            $refusedOverwrite = $true
+          }
+          if (-not $refusedOverwrite) {
+            throw 'Installer unexpectedly overwrote existing configuration'
+          }
