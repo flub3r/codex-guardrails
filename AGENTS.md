@@ -1,45 +1,35 @@
 # Codex Project Rules
 
-## Operating principles
-- Complete scope; expand only when evidence shows the root fix requires it.
-- Inspect before editing; trace the actual owner and flow.
-- Prefer the smallest coherent root-cause change and preserve unrelated work.
-- Never present placeholders or unverified work as complete.
-
 ## Reasoning budget
-Use the cheapest reliable path.
-- Start targeted. Escalate for named risk: ambiguous multi-file behavior, public/data contracts, security, concurrency, migrations, hard-to-reproduce failures, or conflicting evidence.
-- Reserve high effort for those questions or consequential review, not routine discovery or commands.
-- Stop when evidence is sufficient. Return conclusions and references, not raw dumps; repeat work only when evidence conflicts.
+- Finish the requested scope. Inspect the real owner before editing; make the smallest coherent fix; preserve unrelated work.
+- Start targeted with the cheapest reliable reasoning. Escalate only for named risk or conflicting evidence; stop when evidence is sufficient.
+- Never call placeholders or unverified work complete.
 
 ## Subagent policy
-For every non-trivial task, assess delegation before editing. Use subagents when cheaper model routing, context isolation, parallelism, or independent review outweighs their extra total tokens.
+Default to single-agent work: subagents add model and tool tokens. Delegate a bounded task only for material context isolation, independent parallel speed, or consequential uncertainty.
 
-Delegate a bounded assignment when:
-- `explorer`: ownership or flow is unclear or spans multiple areas.
-- `reviewer`: a meaningful or high-risk diff needs an independent correctness or security check.
-- `verifier` or `test_runner`: validation is uncertain, noisy, or long-running.
-- A focused worker: implementation streams have disjoint ownership and low integration risk.
+Do not delegate routine inspection, edits, validation, or review. Self-review first; do not auto-spawn `reviewer` for reassurance.
 
-Isolate large searches, logs, generated output, or documentation research that would pollute the primary context. When a trigger exists, delegate unless coordination overhead erases the benefit.
+Concrete triggers: `explorer` for unresolved ownership after targeted reads; `test_runner` for long/noisy checks beside useful work; `verifier` for unclear validation or claims; `reviewer` for consequential security, data, API, concurrency, migration risk, or conflicting evidence; a worker for disjoint low-coupling implementation.
 
-Choose roles and count from independence, context savings, risk, and concurrency—not a quota. Parallelize independent work; avoid duplication; favor read-only agents; keep coupled tasks primary. The main agent owns integration and edits.
+Use the smallest useful count; the limit is a ceiling. Parallelize only independent work. Give one question and a compact output contract. Keep decisions, coupled edits, and integration primary; avoid duplicate work.
 
-Before spawning, tell the user the roles, assignments, and benefit. In the final response, list each subagent and its contribution; never expose private chain-of-thought.
+Before spawning, tell the user the role, task, and cost benefit. At completion, list each subagent's contribution. Never expose private reasoning.
 
-## Repository workflow
-- Before editing: read applicable instructions; inspect status and diffs; locate the behavior owner; discover repository validation commands. Create a branch only when work is not isolated and the current branch is default or shared.
-- While editing: touch only required files; justify dependencies; never silence checks or error handling; preserve public behavior unless requested.
-- Before completion: review the full diff; validate narrowly, broadening when risk warrants; summarize commands, results, and blockers; update affected docs.
+## Continuity
+- Before a likely pause or usage limit, leave a thread checkpoint: outcome/done criteria; completed work; current files, branch, external state; next action; validation/blockers.
+- On resume after pause, compaction, or restart, inspect the checkpoint and status/diff. Continue at the next incomplete step; repeat only stale or uncertain work.
+- If no checkpoint survived, reconstruct minimal state from status, diff, recent history, and task artifacts; state material uncertainty.
+
+## Workflow
+- Before editing: read instructions; inspect status/diffs; locate ownership; discover validation commands.
+- While editing: touch required files only; justify dependencies; never silence checks; preserve public behavior unless requested.
+- Before completion: review the diff; run the narrowest sufficient validation; report results/blockers; update affected docs.
 
 ## Git safety
-- Never discard work or use destructive recovery (`git reset --hard`, destructive `git clean`, force-push). Policy blocks common forms and prompts every push; refuse force flags. Users handle exceptions.
+- Never discard work or use destructive recovery (`git reset --hard`, destructive `git clean`, force-push). Refuse force flags.
 - Never blanket-stage; review and stage explicit paths.
-- Confirm repository, branch, and scope before remote mutations. Verify uncertain state before retrying.
+- Confirm repository, branch, and scope before remote mutations; verify uncertain state before retrying.
 
-## Failure handling
-- Inspect the error and distinguish pre-existing failures from task-caused regressions.
-- Fix root causes instead of bypassing checks or churning caches, lockfiles, or dependencies. Stop before destructive recovery.
-
-## Completion standard
-Complete means requested behavior is implemented, the diff is reviewed, relevant validation ran or its blocker is documented, and no known task-caused regression remains.
+## Completion
+Complete means requested behavior is implemented, the diff is reviewed, validation ran or its blocker is documented, and no known task-caused regression remains.

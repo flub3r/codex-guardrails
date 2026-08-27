@@ -7,6 +7,7 @@ Keep the always-loaded instructions small. Add a root `AGENTS.md` rule only when
 - Keep unnamed subagents on an efficient default. Raise effort or model capability only for a recurring role with a measured quality gap.
 - Reserve the high-reasoning reviewer for ambiguity, public or data-contract changes, security, concurrency, migrations, hard-to-reproduce failures, or conflicting evidence.
 - Keep discovery and command execution on cheaper models unless representative tasks show that a higher tier changes outcomes.
+- Do not make reviewer delegation a default completion step; require a named risk that self-review cannot cover efficiently.
 - Keep `model_verbosity = "low"` and `model_reasoning_summary = "none"` when a subagent's compact final findings are sufficient.
 - Do not increase agent count and reasoning effort at the same time during tuning; change one variable and compare the same tasks.
 
@@ -21,7 +22,7 @@ Keep the always-loaded instructions small. Add a root `AGENTS.md` rule only when
 
 ## What not to customize casually
 
-- Treat concurrency as a runaway-work ceiling, not a target. Let task independence, context savings, duration, and risk determine the useful count.
+- Treat concurrency as a runaway-work ceiling, not a target. Start with no helper and add only independently useful work.
 - Do not make every subagent writable. Read-heavy agents are easier to coordinate and less likely to conflict.
 - Do not duplicate policy across `AGENTS.md`, agent files, and docs. Put global behavior in `AGENTS.md`, role behavior in agent files, and explanations here.
 - Do not pin the main model unless a team deliberately wants that policy.

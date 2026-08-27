@@ -8,11 +8,12 @@ The package keeps prompt overhead intentionally small. The root `AGENTS.md` is t
 
 - Inspect the repository before editing and solve the root problem instead of guessing.
 - Start with the cheapest reliable path and escalate reasoning only for a named uncertainty or material risk.
-- Assess delegation on every non-trivial task and choose roles dynamically from independence, context load, duration, and risk.
-- Use efficient workers for discovery and validation, while reserving a stronger high-effort reviewer for consequential changes.
+- Default to one agent; delegate only when parallelism, context isolation, or consequential uncertainty repays the extra tokens.
+- Never auto-spawn a reviewer for routine changes; reserve independent review for named high-risk conditions.
 - Prefer targeted reads and distilled evidence over broad scans, raw logs, and duplicated work.
 - Keep the main Codex thread responsible for decisions, integration, and edits.
 - Tell the user before subagents spawn and summarize each agent's contribution at completion.
+- Leave a compact restart checkpoint for work likely to cross a pause or usage limit, then resume without repeating valid work.
 - Discover real repository test/build commands, review the final diff, and report validation honestly.
 - Preserve unrelated user changes and refuse to call placeholders or skipped validation "done".
 - Block common destructive Git and force-push layouts, forbid blanket staging, and require approval for every push.
@@ -25,11 +26,11 @@ Codex command rules match exact argument prefixes. The policy hard-blocks common
 | Agent | Model | Effort | Mode | Purpose |
 |---|---|---|---|---|
 | `explorer` | `gpt-5.6-terra` | medium | read-only | Resolve unclear ownership, execution flow, and root cause |
-| `reviewer` | `gpt-5.6` | high | read-only | Deep review of consequential correctness, security, and regression risk |
+| `reviewer` | `gpt-5.6` | high | read-only | Rare review of consequential correctness, security, and regression risk |
 | `verifier` | `gpt-5.6-terra` | low | read-only | Find the minimal real validation path and challenge unsupported claims |
 | `test_runner` | `gpt-5.6-luna` | low | workspace-write | Run bounded repository-defined checks without editing source |
 
-Unnamed subagents default to `gpt-5.6-terra` at low effort. Four threads is a runaway-work ceiling, not a recommended count: `AGENTS.md` chooses roles and count from the task's actual independent work. The primary Codex model remains a user or team choice.
+Unnamed subagents default to `gpt-5.6-terra` at low effort. Three threads is only a runaway-work ceiling; single-agent execution is the default and the task determines whether any helpers repay their cost. The primary Codex model remains a user or team choice.
 
 Agent reasoning summaries are disabled and response verbosity is low. Agents still perform their configured reasoning, but return compact findings rather than extra narration that pollutes the parent context.
 
@@ -71,7 +72,7 @@ See [`docs/CUSTOMIZING.md`](docs/CUSTOMIZING.md). Put global enforceable behavio
 
 ## Why this structure
 
-Current Codex releases support project configuration, custom project agents, project-local rules, and delegation requested by applicable `AGENTS.md` instructions. OpenAI documents that subagents consume more total tokens, but they can isolate noisy work and route narrow tasks to cheaper models. This starter assesses delegation on every meaningful task, chooses workers from the task rather than a fixed recipe, uses `gpt-5.6-terra` for efficient read-heavy work and `gpt-5.6-luna` for narrow repeatable work, and reserves higher effort for measured quality gains.
+Current Codex releases support project configuration, custom agents, project-local rules, and instruction-driven delegation. OpenAI documents that subagents consume more total tokens; their best use is independent or noisy work whose isolation repays that cost. This starter therefore defaults to the primary agent, keeps cheap helpers available for bounded exceptions, and reserves high effort for measured risk. For long work, its checkpoint protocol preserves outcome, state, next action, and validation across pauses.
 
 Official references:
 
@@ -79,6 +80,7 @@ Official references:
 - https://developers.openai.com/codex/config-reference
 - https://developers.openai.com/codex/rules
 - https://developers.openai.com/codex/guides/agents-md
+- https://learn.chatgpt.com/docs/long-running-work
 - https://developers.openai.com/api/docs/guides/latest-model
 
 ## License

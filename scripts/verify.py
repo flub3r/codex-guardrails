@@ -61,10 +61,10 @@ POLICY_CASES = [
     (("gh", "repo", "view", "owner/repo"), None),
 ]
 
-ROOT_INSTRUCTION_MAX_BYTES = 3_400
+ROOT_INSTRUCTION_MAX_BYTES = 3_000
 AGENT_INSTRUCTION_MAX_BYTES = 700
 TOTAL_AGENT_INSTRUCTION_MAX_BYTES = 2_400
-MAX_SUBAGENT_THREADS = 4
+MAX_SUBAGENT_THREADS = 3
 
 errors: list[str] = []
 parsed_toml: dict[Path, dict[str, Any]] = {}
@@ -97,8 +97,11 @@ if AGENTS_PATH.is_file():
         "Reasoning budget",
         "Subagent policy",
         "Before spawning",
+        "Continuity",
+        "Default to single-agent",
+        "do not auto-spawn `reviewer`",
         "Git safety",
-        "Completion standard",
+        "Completion",
     ):
         if required_text not in agents_text:
             errors.append(f"AGENTS.md missing section marker: {required_text}")

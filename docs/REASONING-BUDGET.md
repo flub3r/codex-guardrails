@@ -4,21 +4,24 @@ This starter optimizes for correct engineering decisions per token, not the most
 
 ## Escalation ladder
 
-1. **Direct work:** The main agent performs targeted inspection and handles straightforward, local changes.
-2. **Explore:** Use `explorer` when ownership, execution flow, or root cause remains unclear.
-3. **Validate:** Use `verifier` to identify the minimal evidence path and `test_runner` to execute bounded commands.
-4. **Deep review:** Use `reviewer` at `gpt-5.6` high only for consequential changes or unresolved logic.
+1. **Direct work:** The primary agent handles inspection, edits, self-review, and normal validation.
+2. **Isolate:** Delegate one bounded question only when noisy context, independent parallel work, or unresolved uncertainty is more expensive in the primary task.
+3. **Deep review:** Use `reviewer` at `gpt-5.6` high only for consequential risk or conflicting evidence—not as a routine completion step.
 
 High-reasoning triggers include ambiguous multi-file behavior, public APIs or data contracts, security boundaries, concurrency, migrations, hard-to-reproduce failures, and conflicting evidence. Repository size alone, routine edits, or a desire for extra reassurance are not sufficient triggers.
 
 ## Token controls
 
 - Unnamed subagents default to `gpt-5.6-terra` low rather than inheriting an expensive parent setting.
-- The configuration caps open subagent threads at four as a runaway-work ceiling; project rules choose the useful count from actual independent work.
+- The configuration caps open subagent threads at three as a runaway-work ceiling; zero helpers is the default.
 - Every delegated task gets one question and a compact output contract.
 - `model_verbosity = "low"` and `model_reasoning_summary = "none"` keep returned context focused while preserving configured reasoning effort.
 - Exploration stops when evidence is sufficient to decide, and delegated work is not repeated without conflicting evidence.
 - Prompt explanations live in docs instead of the always-loaded root instructions.
+
+## Pause and resume
+
+Before a likely pause, leave one compact checkpoint in the task: outcome and done criteria, completed work, current repository/external state, next action, validation, and blockers. After resuming, verify status and continue at the next incomplete step. Repeat prior work only when state changed or its evidence is uncertain.
 
 ## Measuring changes
 

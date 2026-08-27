@@ -3,9 +3,9 @@ multi_agent = true
 
 [agents]
 enabled = true
-max_concurrent_threads_per_session = 4
+max_concurrent_threads_per_session = 3
 default_subagent_model = "gpt-5.6-terra"
 default_subagent_reasoning_effort = "low"
 # Keep the primary model user-selected. Generic workers start efficient;
-# named agents below escalate only for a specific role. Four threads is a
-# runaway-work ceiling; the task determines how many workers are useful.
+# named agents escalate only for a concrete need. Three threads is a safety
+# ceiling; single-agent work is the default.
